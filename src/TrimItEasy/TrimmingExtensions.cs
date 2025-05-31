@@ -47,9 +47,31 @@ public static class TrimmingExtensions
                 return;
             }
 
-            foreach (var item in enumerable)
+            if (obj is IList list)
             {
-                TrimStringsRecursive(item, visited, recursive);
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (list[i] is string str)
+                    {
+                        list[i] = str.Trim();
+                    }
+                    else
+                    {
+                        TrimStringsRecursive(list[i], visited, recursive);
+                    }
+                }
+            }
+            else
+            {
+                foreach (var item in enumerable)
+                {
+                    if (item is string)
+                    {
+                        continue; // can't replace in non-indexable enumerable
+                    }
+
+                    TrimStringsRecursive(item, visited, recursive);
+                }
             }
 
             return;
