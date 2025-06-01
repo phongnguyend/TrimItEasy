@@ -30,12 +30,22 @@ public static class TrimmingExtensions
             return;
         }
 
-        if (!obj.GetType().IsValueType && visited.Contains(obj))
+        var type = obj.GetType();
+        if (type.IsPrimitive
+            || type.IsEnum
+            || type == typeof(decimal)
+            || type == typeof(DateTime)
+            || type == typeof(DateTimeOffset))
+        {
+            return; // Skip primitives, enums, decimal, DateTime, DateTimeOffset
+        }
+
+        if (!type.IsValueType && visited.Contains(obj))
         {
             return;
         }
 
-        if (!obj.GetType().IsValueType)
+        if (!type.IsValueType)
         {
             visited.Add(obj);
         }
@@ -53,7 +63,7 @@ public static class TrimmingExtensions
                 {
                     if (list[i] is string str)
                     {
-                        list[i] = str.Trim();
+                        list[i] = str?.Trim();
                     }
                     else
                     {
@@ -77,7 +87,7 @@ public static class TrimmingExtensions
             return;
         }
 
-        foreach (var prop in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             if (!prop.CanRead || !prop.CanWrite)
             {
@@ -100,7 +110,7 @@ public static class TrimmingExtensions
             {
                 prop.SetValue(obj, ((string)value).Trim());
             }
-            else if (recursive && !prop.PropertyType.IsPrimitive && !prop.PropertyType.IsEnum && prop.PropertyType != typeof(decimal) && prop.PropertyType != typeof(DateTime))
+            else if (recursive)
             {
                 TrimStringsRecursive(value, visited, recursive);
             }
