@@ -84,6 +84,12 @@ public static class TrimmingExtensions
                 continue;
             }
 
+            // Skip properties marked with NotTrimmed attribute
+            if (prop.GetCustomAttribute<NotTrimmedAttribute>() != null)
+            {
+                continue;
+            }
+
             var value = prop.GetValue(obj);
             if (value == null)
             {
