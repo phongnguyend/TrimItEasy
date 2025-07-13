@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace TrimItEasy.System.Text.Json;
+namespace TrimItEasy;
 
 public class TrimmingStringJsonConverter : JsonConverter<string>
 {
