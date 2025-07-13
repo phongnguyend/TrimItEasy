@@ -1,0 +1,35 @@
+name: .Net Build TrimItEasy
+
+on:
+  push:
+    paths: 
+      - 'src/**'
+  pull_request:
+    paths: 
+      - 'src/**'
+  workflow_dispatch:
+  
+jobs:
+  build:
+
+    defaults: 
+      run:
+        working-directory: src
+        
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+  
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 8.0.100
+    - name: Build
+      run: dotnet build --configuration Release 
+
+    - name: Upload TrimItEasy
+      uses: actions/upload-artifact@v4
+      with:
+        name: TrimItEasy
+        path: src/TrimItEasy/bin/Release/*.nupkg
