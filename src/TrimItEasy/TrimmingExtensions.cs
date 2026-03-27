@@ -7,12 +7,16 @@ namespace TrimItEasy;
 
 public static partial class TrimmingExtensions
 {
-    public static void TrimStrings(this object obj, bool recursive = true)
+    private static readonly TrimmingOptions _defaultOptions = new TrimmingOptions();
+
+    public static void TrimStrings(this object obj, TrimmingOptions? options = null)
     {
         if (obj == null)
         {
             return;
         }
+
+        options ??= _defaultOptions;
 
         var type = obj.GetType();
         if (type == typeof(string) || type.IsPrimitive || type.IsEnum)
@@ -22,10 +26,10 @@ public static partial class TrimmingExtensions
 
         var visited = new HashSet<object>(new ReferenceEqualityComparer());
 
-        TrimStringsRecursive(obj, visited, recursive);
+        TrimStringsRecursive(obj, visited, options.Recursive, options.MaxDepth, currentDepth: 0);
     }
 
-    private static void TrimStringsRecursive(object obj, HashSet<object> visited, bool recursive)
+    private static void TrimStringsRecursive(object obj, HashSet<object> visited, bool recursive, int maxDepth, int currentDepth)
     {
         if (obj == null || obj is string)
         {
@@ -69,7 +73,7 @@ public static partial class TrimmingExtensions
                     }
                     else
                     {
-                        TrimStringsRecursive(list[i], visited, recursive);
+                        TrimStringsRecursive(list[i], visited, recursive, maxDepth, currentDepth);
                     }
                 }
             }
@@ -82,7 +86,7 @@ public static partial class TrimmingExtensions
                         continue; // can't replace in non-indexable enumerable
                     }
 
-                    TrimStringsRecursive(item, visited, recursive);
+                    TrimStringsRecursive(item, visited, recursive, maxDepth, currentDepth);
                 }
             }
 
@@ -112,9 +116,9 @@ public static partial class TrimmingExtensions
             {
                 prop.SetValue(obj, ((string)value).Trim());
             }
-            else if (recursive)
+            else if (recursive && currentDepth < maxDepth)
             {
-                TrimStringsRecursive(value, visited, recursive);
+                TrimStringsRecursive(value, visited, recursive, maxDepth, currentDepth + 1);
             }
         }
     }
