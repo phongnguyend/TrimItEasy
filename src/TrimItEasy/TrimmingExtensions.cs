@@ -26,10 +26,10 @@ public static partial class TrimmingExtensions
 
         var visited = new HashSet<object>(new ReferenceEqualityComparer());
 
-        TrimStringsRecursive(obj, visited, options.Recursive, options.MaxDepth, currentDepth: 0);
+        TrimStringsRecursive(obj, visited, options, currentDepth: 0);
     }
 
-    private static void TrimStringsRecursive(object obj, HashSet<object> visited, bool recursive, int maxDepth, int currentDepth)
+    private static void TrimStringsRecursive(object? obj, HashSet<object> visited, TrimmingOptions options, int currentDepth)
     {
         if (obj == null || obj is string)
         {
@@ -58,7 +58,7 @@ public static partial class TrimmingExtensions
 
         if (obj is IEnumerable enumerable && obj is not string)
         {
-            if (!recursive)
+            if (!options.Recursive)
             {
                 return;
             }
@@ -73,7 +73,7 @@ public static partial class TrimmingExtensions
                     }
                     else
                     {
-                        TrimStringsRecursive(list[i], visited, recursive, maxDepth, currentDepth);
+                        TrimStringsRecursive(list[i], visited, options, currentDepth);
                     }
                 }
             }
@@ -86,7 +86,7 @@ public static partial class TrimmingExtensions
                         continue; // can't replace in non-indexable enumerable
                     }
 
-                    TrimStringsRecursive(item, visited, recursive, maxDepth, currentDepth);
+                    TrimStringsRecursive(item, visited, options, currentDepth);
                 }
             }
 
@@ -116,16 +116,16 @@ public static partial class TrimmingExtensions
             {
                 prop.SetValue(obj, ((string)value).Trim());
             }
-            else if (recursive && currentDepth < maxDepth)
+            else if (options.Recursive && currentDepth < options.MaxDepth)
             {
-                TrimStringsRecursive(value, visited, recursive, maxDepth, currentDepth + 1);
+                TrimStringsRecursive(value, visited, options, currentDepth + 1);
             }
         }
     }
 
     private class ReferenceEqualityComparer : IEqualityComparer<object>
     {
-        public new bool Equals(object x, object y) => ReferenceEquals(x, y);
+        public new bool Equals(object? x, object? y) => ReferenceEquals(x, y);
 
         public int GetHashCode(object obj) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
     }
@@ -133,8 +133,13 @@ public static partial class TrimmingExtensions
 
 public static partial class TrimmingExtensions
 {
-    public static T TrimText<T>(this T obj)
+    public static T? TrimText<T>(this T? obj)
     {
+        if (obj == null)
+        {
+            return obj;
+        }
+
         var options = new JsonSerializerOptions
         {
             WriteIndented = true,
