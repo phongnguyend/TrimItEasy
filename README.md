@@ -72,12 +72,23 @@ address.TrimStrings();
 
 ### Recursive Trimming
 
-By default, the library recursively trims all string properties in nested objects. You can disable this behavior:
+By default, the library recursively trims all string properties in nested objects up to a maximum depth of 64 levels. You can customize this behavior using `TrimmingOptions`:
 
 ```csharp
-// Only trim top-level string properties
-person.TrimStrings(recursive: false);
+// Only trim top-level string properties (disable recursion)
+person.TrimStrings(new TrimmingOptions { Recursive = false });
+
+// Limit recursion to 2 levels of nested objects
+person.TrimStrings(new TrimmingOptions { MaxDepth = 2 });
+
+// Only trim the top-level object's string properties (no nested objects)
+person.TrimStrings(new TrimmingOptions { MaxDepth = 0 });
 ```
+
+| Option      | Type   | Default | Description                                                                                          |
+|-------------|--------|---------|------------------------------------------------------------------------------------------------------|
+| `Recursive` | `bool` | `true`  | Whether to trim strings in nested objects. When `false`, only top-level string properties are trimmed.|
+| `MaxDepth`  | `int`  | `64`    | Maximum depth for recursive trimming. `0` trims only top-level properties, `1` includes one level of nested objects, and so on. |
 
 ### Supported Types
 
@@ -175,4 +186,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
