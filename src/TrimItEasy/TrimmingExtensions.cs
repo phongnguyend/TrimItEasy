@@ -1,4 +1,6 @@
 ﻿using System.Collections;
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -106,7 +108,7 @@ public static partial class TrimmingExtensions
                 continue;
             }
 
-            var value = prop.GetValue(obj);
+            var value = GetValue(obj, prop);
             if (value == null)
             {
                 continue;
@@ -114,7 +116,7 @@ public static partial class TrimmingExtensions
 
             if (prop.PropertyType == typeof(string))
             {
-                prop.SetValue(obj, ((string)value).Trim());
+                SetValue(obj, prop, ((string)value).Trim());
             }
             else if (options.Recursive && currentDepth < options.MaxDepth)
             {
@@ -122,6 +124,61 @@ public static partial class TrimmingExtensions
             }
         }
     }
+
+    private static object? GetValue(object obj, PropertyInfo prop)
+    {
+        return GetValueUsingDelegate(obj, prop);
+    }
+
+    private static void SetValue(object obj, PropertyInfo prop, string value)
+    {
+        SetValueUsingDelegate(obj, prop, value);
+    }
+
+    private static object? GetValueUsingReflection(object obj, PropertyInfo prop)
+    {
+        return prop.GetValue(obj);
+    }
+
+    private static void SetValueUsingReflection(object obj, PropertyInfo prop, string value)
+    {
+        prop.SetValue(obj, value);
+    }
+
+    private static object? GetValueUsingDelegate(object obj, PropertyInfo prop)
+    {
+        var key = (obj.GetType(), prop.Name);
+        var getter = _getterCache.GetOrAdd(key, _ =>
+        {
+            var instanceParam = Expression.Parameter(typeof(object), "instance");
+            var castInstance = Expression.Convert(instanceParam, obj.GetType());
+            var propertyAccess = Expression.Property(castInstance, prop);
+            var castResult = Expression.Convert(propertyAccess, typeof(object));
+            return Expression.Lambda<Func<object, object?>>(castResult, instanceParam).Compile();
+        });
+
+        return getter(obj);
+    }
+
+    private static void SetValueUsingDelegate(object obj, PropertyInfo prop, string value)
+    {
+        var key = (obj.GetType(), prop.Name);
+        var setter = _setterCache.GetOrAdd(key, _ =>
+        {
+            var instanceParam = Expression.Parameter(typeof(object), "instance");
+            var valueParam = Expression.Parameter(typeof(object), "value");
+            var castInstance = Expression.Convert(instanceParam, obj.GetType());
+            var castValue = Expression.Convert(valueParam, prop.PropertyType);
+            var propertyAccess = Expression.Property(castInstance, prop);
+            var assign = Expression.Assign(propertyAccess, castValue);
+            return Expression.Lambda<Action<object, object>>(assign, instanceParam, valueParam).Compile();
+        });
+
+        setter(obj, value);
+    }
+
+    private static readonly ConcurrentDictionary<(Type, string), Func<object, object?>> _getterCache = new();
+    private static readonly ConcurrentDictionary<(Type, string), Action<object, string>> _setterCache = new();
 
     private class ReferenceEqualityComparer : IEqualityComparer<object>
     {
