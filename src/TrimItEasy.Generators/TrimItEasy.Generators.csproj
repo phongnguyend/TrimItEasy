@@ -12,13 +12,22 @@
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <Description>Source generator for TrimItEasy that produces compile-time string trimming code with zero reflection.</Description>
+    <PackageTags>trim;string;source-generator;roslyn</PackageTags>
+
+    <!-- Source generators must not be added as a lib reference -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
@@ -26,6 +35,11 @@
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>
+  </ItemGroup>
+
+  <!-- Pack the generator DLL into the analyzers folder -->
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
 </Project>

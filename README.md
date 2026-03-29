@@ -180,6 +180,100 @@ order.TrimStrings();
 // All string properties will be trimmed except Customer.PhoneNumber
 ```
 
+### Source Generator (Zero Reflection)
+
+For maximum performance, TrimItEasy includes a source generator that produces optimized trimming code at compile time — no reflection at runtime.
+
+#### Installation
+
+Install both the core library and the source generator package:
+
+```bash
+dotnet add package TrimItEasy
+dotnet add package TrimItEasy.Generators
+```
+
+Or using the NuGet Package Manager in Visual Studio:
+```
+Install-Package TrimItEasy
+Install-Package TrimItEasy.Generators
+```
+
+> **Note:** The `TrimItEasy.Generators` package must be referenced as an analyzer. If you are referencing the project directly, use:
+> ```xml
+> <ProjectReference Include="..\TrimItEasy.Generators\TrimItEasy.Generators.csproj"
+>                   OutputItemType="Analyzer"
+>                   ReferenceOutputAssembly="false" />
+> ```
+
+#### Usage
+
+1. **Define a `static partial` extension method** that takes your target type as a `this` parameter and returns `void`.
+2. **Annotate it with `[GeneratedTrimming]`**.
+
+The source generator will implement the method body automatically.
+
+```csharp
+using TrimItEasy;
+
+public class Person
+{
+    public string Name { get; set; }
+    public string Email { get; set; }
+    public Address HomeAddress { get; set; }
+    public List<Phone> Phones { get; set; }
+}
+
+public class Address
+{
+    public string Street { get; set; }
+    public string City { get; set; }
+}
+
+public class Phone
+{
+    public string Type { get; set; }
+    public string Number { get; set; }
+}
+
+// Define the partial method — the source generator fills in the implementation
+public static partial class PersonExtensions
+{
+    [GeneratedTrimming]
+    public static partial void FastTrimStrings(this Person person);
+}
+```
+
+Then simply call the generated method:
+
+```csharp
+var person = new Person
+{
+    Name = "  John Doe  ",
+    Email = "  john@example.com  ",
+    HomeAddress = new Address
+    {
+        Street = "  123 Main St  ",
+        City = "  New York  "
+    },
+    Phones = new List<Phone>
+    {
+        new Phone { Type = "  Mobile  ", Number = " 123-456-7890 " }
+    }
+};
+
+person.FastTrimStrings();
+// All string properties are trimmed, including nested objects and collections
+```
+
+#### How It Works
+
+- The source generator analyzes the target type's property graph at compile time.
+- It generates a dedicated trimming method that directly accesses each string property — no reflection involved.
+- Nested objects and collections (`List<T>`, arrays, etc.) are handled recursively.
+- Properties marked with `[NotTrimmed]` are respected and skipped.
+- Circular references are detected and handled safely using a visited set.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
