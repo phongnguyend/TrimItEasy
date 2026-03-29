@@ -37,3 +37,9 @@ jobs:
       with:
         name: TrimItEasy
         path: src/TrimItEasy/bin/Release/*.nupkg
+
+    - name: Upload TrimItEasy.Generators
+      uses: actions/upload-artifact@v4
+      with:
+        name: TrimItEasy.Generators
+        path: src/TrimItEasy.Generators/bin/Release/*.nupkg

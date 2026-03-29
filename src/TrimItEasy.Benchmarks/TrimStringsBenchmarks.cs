@@ -65,6 +65,12 @@ public class TrimStringsBenchmarks
         _person.TrimStringsWithDelegate();
     }
 
+    [Benchmark]
+    public void TrimUsingPartialMethod()
+    {
+        _person.FastTrimStrings();
+    }
+
     public class Person
     {
         public string Name { get; set; } = null!;
@@ -98,4 +104,10 @@ public class TrimStringsBenchmarks
         public Address OfficeAddress { get; set; } = null!;
         public List<Person> Employees { get; set; } = null!;
     }
+}
+
+public static partial class PersonExtensions
+{
+    [GeneratedTrimming]
+    public static partial void FastTrimStrings(this TrimStringsBenchmarks.Person person);
 }
