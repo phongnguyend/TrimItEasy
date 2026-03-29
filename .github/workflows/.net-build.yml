@@ -47,7 +47,7 @@ jobs:
     - name: Publish TrimItEasy to NuGet
       if: startsWith(github.ref, 'refs/tags/releases/v')
       run: |
-        dotnet nuget push "src/TrimItEasy/bin/Release/*.nupkg" \
+        dotnet nuget push "TrimItEasy/bin/Release/*.nupkg" \
           --api-key ${{ secrets.NUGET_API_KEY }} \
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate
@@ -55,7 +55,7 @@ jobs:
     - name: Publish TrimItEasy.Generators to NuGet
       if: startsWith(github.ref, 'refs/tags/releases/v')
       run: |
-        dotnet nuget push "src/TrimItEasy.Generators/bin/Release/*.nupkg" \
+        dotnet nuget push "TrimItEasy.Generators/bin/Release/*.nupkg" \
           --api-key ${{ secrets.NUGET_API_KEY }} \
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate
