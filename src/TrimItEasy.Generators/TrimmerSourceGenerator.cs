@@ -13,6 +13,7 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
 {
     private const string GeneratedTrimmingAttributeFullName = "TrimItEasy.GeneratedTrimmingAttribute";
     private const string NotTrimmedAttributeFullName = "TrimItEasy.NotTrimmedAttribute";
+    private const string TrimmingOptionsFullName = "TrimItEasy.TrimmingOptions";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -69,11 +70,39 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
             return null;
         }
 
+        // Must have 1 or 2 parameters (the target + optional TrimmingOptions)
+        if (methodSymbol.Parameters.Length > 2)
+        {
+            return null;
+        }
+
         var targetParam = methodSymbol.Parameters[0];
         var targetType = targetParam.Type as INamedTypeSymbol;
         if (targetType == null)
         {
             return null;
+        }
+
+        // Check for optional TrimmingOptions parameter
+        bool hasOptionsParameter = false;
+        if (methodSymbol.Parameters.Length == 2)
+        {
+            var secondParam = methodSymbol.Parameters[1];
+            var secondParamType = secondParam.Type;
+
+            // Check if it's TrimmingOptions? (nullable) or TrimmingOptions
+            var underlyingType = secondParamType;
+            if (secondParamType is INamedTypeSymbol namedSecond && namedSecond.NullableAnnotation == NullableAnnotation.Annotated)
+            {
+                underlyingType = namedSecond;
+            }
+
+            if (underlyingType.ToDisplayString().TrimEnd('?') != TrimmingOptionsFullName)
+            {
+                return null;
+            }
+
+            hasOptionsParameter = true;
         }
 
         var allTypes = new Dictionary<string, TypeInfo>();
@@ -144,6 +173,7 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
             accessibility,
             targetTypeFullName,
             paramName,
+            hasOptionsParameter,
             allTypes);
     }
 
@@ -361,21 +391,43 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
             }
 
             // Generate the partial method implementation
-            sb.AppendLine($"{indent}{method.Accessibility} static partial void {method.MethodName}(this {method.TargetTypeFullName} {method.ParameterName})");
+            if (method.HasOptionsParameter)
+            {
+                sb.AppendLine($"{indent}{method.Accessibility} static partial void {method.MethodName}(this {method.TargetTypeFullName} {method.ParameterName}, global::TrimItEasy.TrimmingOptions? options)");
+            }
+            else
+            {
+                sb.AppendLine($"{indent}{method.Accessibility} static partial void {method.MethodName}(this {method.TargetTypeFullName} {method.ParameterName})");
+            }
             sb.AppendLine($"{indent}{{");
+
+            if (method.HasOptionsParameter)
+            {
+                sb.AppendLine($"{indent}    options ??= new global::TrimItEasy.TrimmingOptions();");
+            }
+
             sb.AppendLine($"{indent}    var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);");
-            sb.AppendLine($"{indent}    TrimProperties_{EscapeTypeName(method.TargetTypeFullName)}({method.ParameterName}, visited);");
+
+            if (method.HasOptionsParameter)
+            {
+                sb.AppendLine($"{indent}    TrimProperties_{EscapeTypeName(method.TargetTypeFullName)}({method.ParameterName}, visited, options, 0);");
+            }
+            else
+            {
+                sb.AppendLine($"{indent}    TrimProperties_{EscapeTypeName(method.TargetTypeFullName)}({method.ParameterName}, visited);");
+            }
+
             sb.AppendLine($"{indent}}}");
             sb.AppendLine();
 
             // Generate per-type trim helper methods
             foreach (var kvp in method.AllTypes)
             {
-                GenerateTypeTrimHelper(sb, indent, kvp.Value, method.AllTypes);
+                GenerateTypeTrimHelper(sb, indent, kvp.Value, method.AllTypes, method.HasOptionsParameter);
             }
 
             // Generate the recurse helper for collections and unknown complex types
-            GenerateRecurseHelper(sb, indent, method.AllTypes);
+            GenerateRecurseHelper(sb, indent, method.AllTypes, method.HasOptionsParameter);
 
             // Close containing types
             for (int i = method.ContainingTypes.Count - 1; i >= 0; i--)
@@ -389,11 +441,18 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
         }
     }
 
-    private static void GenerateTypeTrimHelper(StringBuilder sb, string indent, TypeInfo type, Dictionary<string, TypeInfo> allTypes)
+    private static void GenerateTypeTrimHelper(StringBuilder sb, string indent, TypeInfo type, Dictionary<string, TypeInfo> allTypes, bool hasOptions)
     {
         var escapedName = EscapeTypeName(type.FullyQualifiedName);
 
-        sb.AppendLine($"{indent}private static void TrimProperties_{escapedName}({type.FullyQualifiedName} obj, HashSet<object> visited)");
+        if (hasOptions)
+        {
+            sb.AppendLine($"{indent}private static void TrimProperties_{escapedName}({type.FullyQualifiedName} obj, HashSet<object> visited, global::TrimItEasy.TrimmingOptions options, int currentDepth)");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}private static void TrimProperties_{escapedName}({type.FullyQualifiedName} obj, HashSet<object> visited)");
+        }
         sb.AppendLine($"{indent}{{");
 
         if (!type.IsValueType)
@@ -422,28 +481,51 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
             }
             else if (prop.TypeKind == PropertyTypeKind.Complex)
             {
-                if (allTypes.ContainsKey(prop.TypeFullName))
+                if (hasOptions)
                 {
-                    // Known type — call the specific helper
-                    sb.AppendLine($"{indent}    if (obj.{prop.Name} != null)");
+                    sb.AppendLine($"{indent}    if (options.Recursive && currentDepth < options.MaxDepth && obj.{prop.Name} != null)");
                     sb.AppendLine($"{indent}    {{");
-                    sb.AppendLine($"{indent}        TrimProperties_{EscapeTypeName(prop.TypeFullName)}(obj.{prop.Name}, visited);");
+                    if (allTypes.ContainsKey(prop.TypeFullName))
+                    {
+                        sb.AppendLine($"{indent}        TrimProperties_{EscapeTypeName(prop.TypeFullName)}(obj.{prop.Name}, visited, options, currentDepth + 1);");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"{indent}        TrimRecursive(obj.{prop.Name}, visited, options, currentDepth + 1);");
+                    }
                     sb.AppendLine($"{indent}    }}");
                     sb.AppendLine();
                 }
                 else
                 {
-                    // Unknown complex type — call the generic recurse helper
-                    sb.AppendLine($"{indent}    if (obj.{prop.Name} != null)");
-                    sb.AppendLine($"{indent}    {{");
-                    sb.AppendLine($"{indent}        TrimRecursive(obj.{prop.Name}, visited);");
-                    sb.AppendLine($"{indent}    }}");
-                    sb.AppendLine();
+                    if (allTypes.ContainsKey(prop.TypeFullName))
+                    {
+                        sb.AppendLine($"{indent}    if (obj.{prop.Name} != null)");
+                        sb.AppendLine($"{indent}    {{");
+                        sb.AppendLine($"{indent}        TrimProperties_{EscapeTypeName(prop.TypeFullName)}(obj.{prop.Name}, visited);");
+                        sb.AppendLine($"{indent}    }}");
+                        sb.AppendLine();
+                    }
+                    else
+                    {
+                        sb.AppendLine($"{indent}    if (obj.{prop.Name} != null)");
+                        sb.AppendLine($"{indent}    {{");
+                        sb.AppendLine($"{indent}        TrimRecursive(obj.{prop.Name}, visited);");
+                        sb.AppendLine($"{indent}    }}");
+                        sb.AppendLine();
+                    }
                 }
             }
             else if (prop.TypeKind == PropertyTypeKind.Collection)
             {
-                sb.AppendLine($"{indent}    if (obj.{prop.Name} != null)");
+                if (hasOptions)
+                {
+                    sb.AppendLine($"{indent}    if (options.Recursive && currentDepth < options.MaxDepth && obj.{prop.Name} != null)");
+                }
+                else
+                {
+                    sb.AppendLine($"{indent}    if (obj.{prop.Name} != null)");
+                }
                 sb.AppendLine($"{indent}    {{");
 
                 if (prop.CollectionElementTypeKind == PropertyTypeKind.String)
@@ -469,7 +551,14 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
                     sb.AppendLine($"{indent}        {{");
                     sb.AppendLine($"{indent}            if (item != null)");
                     sb.AppendLine($"{indent}            {{");
-                    sb.AppendLine($"{indent}                TrimProperties_{EscapeTypeName(prop.CollectionElementTypeFullName)}(item, visited);");
+                    if (hasOptions)
+                    {
+                        sb.AppendLine($"{indent}                TrimProperties_{EscapeTypeName(prop.CollectionElementTypeFullName)}(item, visited, options, currentDepth + 1);");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"{indent}                TrimProperties_{EscapeTypeName(prop.CollectionElementTypeFullName)}(item, visited);");
+                    }
                     sb.AppendLine($"{indent}            }}");
                     sb.AppendLine($"{indent}        }}");
                 }
@@ -480,7 +569,14 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
                     sb.AppendLine($"{indent}        {{");
                     sb.AppendLine($"{indent}            if (item != null)");
                     sb.AppendLine($"{indent}            {{");
-                    sb.AppendLine($"{indent}                TrimRecursive(item, visited);");
+                    if (hasOptions)
+                    {
+                        sb.AppendLine($"{indent}                TrimRecursive(item, visited, options, currentDepth + 1);");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"{indent}                TrimRecursive(item, visited);");
+                    }
                     sb.AppendLine($"{indent}            }}");
                     sb.AppendLine($"{indent}        }}");
                 }
@@ -495,9 +591,16 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
         sb.AppendLine();
     }
 
-    private static void GenerateRecurseHelper(StringBuilder sb, string indent, Dictionary<string, TypeInfo> allTypes)
+    private static void GenerateRecurseHelper(StringBuilder sb, string indent, Dictionary<string, TypeInfo> allTypes, bool hasOptions)
     {
-        sb.AppendLine($"{indent}private static void TrimRecursive(object? obj, HashSet<object> visited)");
+        if (hasOptions)
+        {
+            sb.AppendLine($"{indent}private static void TrimRecursive(object? obj, HashSet<object> visited, global::TrimItEasy.TrimmingOptions options, int currentDepth)");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}private static void TrimRecursive(object? obj, HashSet<object> visited)");
+        }
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{indent}    if (obj == null || obj is string)");
         sb.AppendLine($"{indent}    {{");
@@ -527,7 +630,14 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
                 first = false;
                 sb.AppendLine($"{indent}    {keyword} (obj is {typeInfo.FullyQualifiedName} typed_{EscapeTypeName(typeInfo.FullyQualifiedName)})");
                 sb.AppendLine($"{indent}    {{");
-                sb.AppendLine($"{indent}        TrimProperties_{EscapeTypeName(typeInfo.FullyQualifiedName)}(typed_{EscapeTypeName(typeInfo.FullyQualifiedName)}, visited);");
+                if (hasOptions)
+                {
+                    sb.AppendLine($"{indent}        TrimProperties_{EscapeTypeName(typeInfo.FullyQualifiedName)}(typed_{EscapeTypeName(typeInfo.FullyQualifiedName)}, visited, options, currentDepth);");
+                }
+                else
+                {
+                    sb.AppendLine($"{indent}        TrimProperties_{EscapeTypeName(typeInfo.FullyQualifiedName)}(typed_{EscapeTypeName(typeInfo.FullyQualifiedName)}, visited);");
+                }
                 sb.AppendLine($"{indent}        return;");
                 sb.AppendLine($"{indent}    }}");
             }
@@ -545,7 +655,14 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}            }}");
         sb.AppendLine($"{indent}            else");
         sb.AppendLine($"{indent}            {{");
-        sb.AppendLine($"{indent}                TrimRecursive(list[i], visited);");
+        if (hasOptions)
+        {
+            sb.AppendLine($"{indent}                TrimRecursive(list[i], visited, options, currentDepth);");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}                TrimRecursive(list[i], visited);");
+        }
         sb.AppendLine($"{indent}            }}");
         sb.AppendLine($"{indent}        }}");
         sb.AppendLine($"{indent}        return;");
@@ -559,7 +676,14 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}        {{");
         sb.AppendLine($"{indent}            if (item is not string)");
         sb.AppendLine($"{indent}            {{");
-        sb.AppendLine($"{indent}                TrimRecursive(item, visited);");
+        if (hasOptions)
+        {
+            sb.AppendLine($"{indent}                TrimRecursive(item, visited, options, currentDepth);");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}                TrimRecursive(item, visited);");
+        }
         sb.AppendLine($"{indent}            }}");
         sb.AppendLine($"{indent}        }}");
         sb.AppendLine($"{indent}        return;");
@@ -589,10 +713,11 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
         public string Accessibility { get; }
         public string TargetTypeFullName { get; }
         public string ParameterName { get; }
+        public bool HasOptionsParameter { get; }
         public Dictionary<string, TypeInfo> AllTypes { get; }
 
         public MethodToGenerate(string methodName, string? ns, List<ContainingTypeInfo> containingTypes,
-            string accessibility, string targetTypeFullName, string parameterName, Dictionary<string, TypeInfo> allTypes)
+            string accessibility, string targetTypeFullName, string parameterName, bool hasOptionsParameter, Dictionary<string, TypeInfo> allTypes)
         {
             MethodName = methodName;
             Namespace = ns;
@@ -600,6 +725,7 @@ public class TrimmerSourceGenerator : IIncrementalGenerator
             Accessibility = accessibility;
             TargetTypeFullName = targetTypeFullName;
             ParameterName = parameterName;
+            HasOptionsParameter = hasOptionsParameter;
             AllTypes = allTypes;
         }
     }

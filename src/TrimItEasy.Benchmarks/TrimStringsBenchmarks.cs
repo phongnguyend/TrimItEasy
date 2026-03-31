@@ -66,9 +66,15 @@ public class TrimStringsBenchmarks
     }
 
     [Benchmark]
-    public void TrimUsingPartialMethod()
+    public void TrimUsingGenerator()
     {
         _person.FastTrimStrings();
+    }
+
+    [Benchmark]
+    public void TrimUsingGeneratorWithOptions()
+    {
+        _person.FastTrimStringsWithOptions();
     }
 
     public class Person
@@ -110,4 +116,7 @@ public static partial class PersonExtensions
 {
     [GeneratedTrimming]
     public static partial void FastTrimStrings(this TrimStringsBenchmarks.Person person);
+
+    [GeneratedTrimming]
+    public static partial void FastTrimStringsWithOptions(this TrimStringsBenchmarks.Person person, TrimmingOptions? options = null);
 }

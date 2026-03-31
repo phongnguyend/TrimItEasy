@@ -1,6 +1,6 @@
 namespace TrimItEasy.Tests;
 
-public class TrimmingExtensionsTests
+public class GeneratedTrimmingTests
 {
     [Fact]
     public void Recursive_False()
@@ -29,17 +29,16 @@ public class TrimmingExtensionsTests
         var company = new Company
         {
             Name = "  Initech  ",
-            OfficeAddress = person.HomeAddress, // shared reference
+            OfficeAddress = person.HomeAddress,
             Employees = new List<Person> { person }
         };
 
         person.Employer = company;
 
         // Act
-        person.TrimStrings(new TrimmingOptions { Recursive = false });
+        person.GeneratedTrimStrings(new TrimmingOptions { Recursive = false });
 
         // Assert
-
         Assert.Equal("John Doe", person.Name);
         Assert.Equal("  123 Elm St  ", person.HomeAddress.Street);
     }
@@ -71,17 +70,16 @@ public class TrimmingExtensionsTests
         var company = new Company
         {
             Name = "  Initech  ",
-            OfficeAddress = person.HomeAddress, // shared reference
+            OfficeAddress = person.HomeAddress,
             Employees = new List<Person> { person }
         };
 
         person.Employer = company;
 
         // Act
-        person.TrimStrings(new TrimmingOptions { Recursive = true });
+        person.GeneratedTrimStrings(new TrimmingOptions { Recursive = true });
 
         // Assert
-
         Assert.Equal("John Doe", person.Name);
         Assert.Equal("123 Elm St", person.HomeAddress.Street);
     }
@@ -110,7 +108,7 @@ public class TrimmingExtensionsTests
         };
 
         // Act
-        person.TrimStrings(new TrimmingOptions { MaxDepth = 0 });
+        person.GeneratedTrimStrings(new TrimmingOptions { MaxDepth = 0 });
 
         // Assert
         Assert.Equal("John Doe", person.Name);
@@ -144,7 +142,7 @@ public class TrimmingExtensionsTests
         };
 
         // Act
-        person.TrimStrings(new TrimmingOptions { MaxDepth = 1 });
+        person.GeneratedTrimStrings(new TrimmingOptions { MaxDepth = 1 });
 
         // Assert
         Assert.Equal("John Doe", person.Name);
@@ -176,7 +174,7 @@ public class TrimmingExtensionsTests
         };
 
         // Act
-        person.TrimStrings(new TrimmingOptions { MaxDepth = 2 });
+        person.GeneratedTrimStrings(new TrimmingOptions { MaxDepth = 2 });
 
         // Assert
         Assert.Equal("John Doe", person.Name);
@@ -206,7 +204,7 @@ public class TrimmingExtensionsTests
         };
 
         // Act
-        person.TrimStrings(new TrimmingOptions());
+        person.GeneratedTrimStrings(new TrimmingOptions());
 
         // Assert
         Assert.Equal("John Doe", person.Name);
@@ -231,10 +229,16 @@ public class TrimmingExtensionsTests
         };
 
         // Act
-        person.TrimStrings(new TrimmingOptions { Recursive = false, MaxDepth = 5 });
+        person.GeneratedTrimStrings(new TrimmingOptions { Recursive = false, MaxDepth = 5 });
 
         // Assert
         Assert.Equal("John Doe", person.Name);
         Assert.Equal("  123 Elm St  ", person.HomeAddress.Street);
     }
+}
+
+public static partial class GeneratedTrimmingPersonExtensions
+{
+    [GeneratedTrimming]
+    public static partial void GeneratedTrimStrings(this Person person, TrimmingOptions? options = null);
 }

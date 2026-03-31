@@ -241,6 +241,9 @@ public static partial class PersonExtensions
 {
     [GeneratedTrimming]
     public static partial void FastTrimStrings(this Person person);
+	
+    [GeneratedTrimming]
+    public static partial void FastTrimStringsWithOptions(this Person person, TrimmingOptions? options = null);
 }
 ```
 
