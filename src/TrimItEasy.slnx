@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="global.json" />
+    <File Path="notes.txt" />
+  </Folder>
+  <Project Path="TrimItEasy.Benchmarks/TrimItEasy.Benchmarks.csproj" />
+  <Project Path="TrimItEasy.Generators/TrimItEasy.Generators.csproj" />
+  <Project Path="TrimItEasy.Tests/TrimItEasy.Tests.csproj" />
+  <Project Path="TrimItEasy/TrimItEasy.csproj" />
+</Solution>
